@@ -136,7 +136,7 @@ def _get_query_map(query_point, src_nodes, src_grp, tol):
 
     ################################ MAPPING CODE ENDS ###################################
 
-def _get_modal_basis(query_point, src_nodes, src_grp, tol):
+def _get_modal_basis(query_point, src_grp, tol):
     dim = src_grp.dim
 
     src_grp_basis_fcts = src_grp.basis_obj().functions
@@ -147,13 +147,12 @@ def _get_modal_basis(query_point, src_nodes, src_grp, tol):
     # unit_query_points: (dim, ntest_elements)
 
     # basis_at_unit_query_points
-    basis_at_unit_query_points = np.empty((nsrc_funcs, 1))
+    basis_at_unit_query_points = np.empty((nsrc_funcs))
 
     for i, f in enumerate(src_grp_basis_fcts):
-        basis_at_unit_query_points[i] = (
-                f(query_point).reshape(1))
+        basis_at_unit_query_points[i] = f(query_point)
 
-    intp_coeffs = np.einsum("fj,je->fe", inv_t_vdm, basis_at_unit_query_points)
+    intp_coeffs = np.einsum("fj,j->f", inv_t_vdm, basis_at_unit_query_points)
 
     return intp_coeffs
 
@@ -176,7 +175,7 @@ def query_eval(query_point, actx, discr, dim, tol):
         matched_elems, = np.where(overlaps)
         src_nodes = np.stack([grp_nodes[i][matched_elems, :] for i in range(dim)])
         query_mapped_cand = _get_query_map(query_point, src_nodes, src_grp, tol)
-        # TODO: Figure out which candidate element actually contains the query point
+
         query_mapped = query_mapped_cand[:, 0]
         query_elem = matched_elems[0]
         for i in range(query_mapped_cand.shape[1]):
@@ -197,10 +196,10 @@ def u_eval(u, query_point, actx, discr, dim, tol):
     u_elem = u[0][q_elem]
 
     for igrp, src_grp in enumerate(vol_discr.groups):
-        grp_nodes = np.stack([actx.to_numpy(nodes[i][igrp]) for i in range(dim)])
-        elem_nodes = np.stack([grp_nodes[i][q_elem, :] for i in range(dim)])
+        #grp_nodes = np.stack([actx.to_numpy(nodes[i][igrp]) for i in range(dim)])
+        #elem_nodes = np.stack([grp_nodes[i][q_elem, :] for i in range(dim)])
 
-        q_coeffs = _get_modal_basis(q, elem_nodes, src_grp, tol)
-        u_mapped = np.dot(u_elem,q_coeffs)[0]
+        q_coeffs = _get_modal_basis(q, src_grp, tol)
+        u_mapped = np.dot(u_elem,q_coeffs)
 
     return u_mapped
