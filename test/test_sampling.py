@@ -36,7 +36,7 @@ from grudge.eager import EagerDGDiscretization
 from grudge import sym as grudge_sym
 from grudge.shortcuts import make_visualizer
 from grudge.dof_desc import DISCR_TAG_BASE, DTAG_BOUNDARY
-from mirgecom.sampling import query_eval
+from mirgecom.sampling import query_eval, u_eval
 from mirgecom.integrators import rk4_step
 from mirgecom.diffusion import (
     diffusion_operator,
@@ -113,17 +113,23 @@ def main():
     
     q_mapped, q_elem = query_eval(query_point, actx, discr, dim, tol)
 
-    u_elem = u[0] #u[q_elem]
-    u_query = 0
-    nnodes = 20
-    for i in range(nnodes):
-        f_basis_i = discr.discr_from_dd("vol").groups[0].basis_obj().functions[i]
-        u_query = u_query + u_elem[i]*f_basis_i(q_mapped)
+    q_check = np.array([[-0.92], [-0.84], [-0.76]]).reshape(3,)
 
-    print(q_mapped)
-    print(q_elem)    
-    #assert u_query == pytest.approx(simple_poly(qx,qy,qz), tol)
+    assert(q_mapped.all() == q_check.all())
 
+    u_modal = u_eval(u, query_point, actx, discr, dim, tol)
+
+    #u_elem = u[0][q_elem]
+    #u_query = 0
+    #nnodes = 20
+
+    #for i in range(nnodes):
+    #    f_basis_i = discr.discr_from_dd("vol").groups[0].basis_obj().functions[i]
+    #    u_query = u_query + u_elem[i]*f_basis_i(q_mapped)
+
+    print(u_modal)
+    print(simple_poly(qx,qy,qz))
+    #assert u_modal == pytest.approx(simple_poly(qx,qy,qz), tol)
 
 if __name__ == "__main__":
     main()

@@ -118,7 +118,7 @@ def _get_query_map(query_point, src_nodes, src_grp, tol):
             # case... good luck. :)
             for e in range(ntest_elements):
                 df_inv_resid[:, e], _, _, _ = \
-                        la.lstsq(df[:, :, e].T, resid[:, e])
+                        la.lstsq(df[:, :, e].T, resid[:, e], rcond=-1)
 
         src_unit_query_points = src_unit_query_points - df_inv_resid
 
@@ -136,9 +136,29 @@ def _get_query_map(query_point, src_nodes, src_grp, tol):
 
     ################################ MAPPING CODE ENDS ###################################
 
+def _get_modal_basis(query_point, src_nodes, src_grp, tol):
+    dim = src_grp.dim
+
+    src_grp_basis_fcts = src_grp.basis_obj().functions
+    vdm = mp.vandermonde(src_grp_basis_fcts, src_grp.unit_nodes)
+    inv_t_vdm = la.inv(vdm.T)
+    nsrc_funcs = len(src_grp_basis_fcts)
+
+    # unit_query_points: (dim, ntest_elements)
+
+    # basis_at_unit_query_points
+    basis_at_unit_query_points = np.empty((nsrc_funcs, 1))
+
+    for i, f in enumerate(src_grp_basis_fcts):
+        basis_at_unit_query_points[i] = (
+                f(query_point).reshape(1))
+
+    intp_coeffs = np.einsum("fj,je->fe", inv_t_vdm, basis_at_unit_query_points)
+
+    return intp_coeffs
+
 def query_eval(query_point, actx, discr, dim, tol):
     nodes = thaw(actx, discr.nodes())
-
     vol_discr = discr.discr_from_dd("vol")
 
     query_mapped = None
@@ -154,7 +174,6 @@ def query_eval(query_point, actx, discr, dim, tol):
         for i in range(1, dim):
             overlaps = overlaps & overlaps_in_dim[i]
         matched_elems, = np.where(overlaps)
-        print(matched_elems)
         src_nodes = np.stack([grp_nodes[i][matched_elems, :] for i in range(dim)])
         query_mapped_cand = _get_query_map(query_point, src_nodes, src_grp, tol)
         # TODO: Figure out which candidate element actually contains the query point
@@ -169,3 +188,19 @@ def query_eval(query_point, actx, discr, dim, tol):
                 break
 
     return query_mapped, query_elem
+
+def u_eval(u, query_point, actx, discr, dim, tol):
+    nodes = thaw(actx, discr.nodes())
+    vol_discr = discr.discr_from_dd("vol")
+
+    q, q_elem = query_eval(query_point, actx, discr, dim, tol)
+    u_elem = u[0][q_elem]
+
+    for igrp, src_grp in enumerate(vol_discr.groups):
+        grp_nodes = np.stack([actx.to_numpy(nodes[i][igrp]) for i in range(dim)])
+        elem_nodes = np.stack([grp_nodes[i][q_elem, :] for i in range(dim)])
+
+        q_coeffs = _get_modal_basis(q, elem_nodes, src_grp, tol)
+        u_mapped = np.dot(u_elem,q_coeffs)[0]
+
+    return u_mapped
