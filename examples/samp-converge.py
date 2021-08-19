@@ -67,16 +67,16 @@ def main():
     def cube_trig(x, y, z, t):
         return np.exp(-t)*np.sin(x)*np.cos(y)*np.sin(z)
 
-    qx = random.uniform(0,10)
-    qy = random.uniform(0,10)
-    qz = random.uniform(0,10)
+    q_arr = 10*np.random.rand(1000,3)
 
     Nx = [4, 5, 6, 8, 11, 20]
-    err = []
+    err = np.array([])
     dt = 0.0005
     t_final = 0.1
 
-    u_check = cube_trig(qx, qy, qz, t_final)
+    u_check = np.array([])
+    for point in q_arr:
+        u_check = np.append(u_check,cube_trig(point[0], point[1], point[2], t_final))
 
     for nx in Nx:
         if mesh_dist.is_mananger_rank():
@@ -133,8 +133,7 @@ def main():
                 print(istep, t, discr.norm(u))
                 # vis.write_vtk_file("29-fld-act2-bdy-%03d-%04d.vtu" % (rank, istep),
                 #         [
-                #             ("u", u),
-                #             ("a", alpha)
+                #             ("u", u)
                 #             ])
 
             if t >= t_final:
@@ -145,12 +144,19 @@ def main():
             istep += 1
 
 
-        query_point = np.array([qx, qy, qz])
         tol = 1e-5
+        u_modal = np.array([])
+        for point in q_arr:
+            u_point = u_eval(u, point, actx, discr, dim, tol)
+            u_modal = np.append(u_modal, u_point)
 
-        q_mapped, q_elem = query_eval(query_point, actx, discr, dim, tol)
-        u_modal = u_eval(u, query_point, actx, discr, dim, tol)
-        err.append(np.abs(u_modal - u_check))
+        diff = abs(u_modal - u_check)
+        print(diff)
+        print(type(diff))
+
+        err_inf = np.amax(diff)
+        err_2 = la.norm(diff, ord=2)
+        err = np.append(err, err_2)
 
     print(err)
 if __name__ == "__main__":

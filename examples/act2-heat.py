@@ -80,7 +80,7 @@ def main():
     else:
         local_mesh = mesh_dist.receive_mesh_part()
 
-    order = 1
+    order = 3
 
     discr = EagerDGDiscretization(actx, local_mesh, order=order,
                     mpi_communicator=comm)
@@ -238,8 +238,17 @@ def main():
     u = discr.zeros(actx) + act2_tanh(0)
 
     t = 0
-    t_final = dt
+    t_final = 5
     istep = 0
+
+    tol = 1e-5
+    tc1 = np.array([17.5, 20.0, 16])
+    tc2 = np.array([17.5, 23.0, 16])
+    tc3 = np.array([17.5, 26.0, 16])
+
+    u_tc1 = [u_eval(u, tc1, actx, discr, dim, tol)]
+    u_tc2 = [u_eval(u, tc2, actx, discr, dim, tol)]
+    u_tc3 = [u_eval(u, tc3, actx, discr, dim, tol)]
 
     while True:
 
@@ -247,8 +256,7 @@ def main():
             print(istep, t, discr.norm(u))
             vis.write_vtk_file("29-fld-act2-bdy-%03d-%04d.vtu" % (rank, istep),
                     [
-                        ("u", u),
-                        ("a", alpha)
+                        ("u", u)
                         ])
 
         if t >= t_final:
@@ -257,6 +265,10 @@ def main():
         u = rk4_step(u, t, dt, rhs)
         t += dt
         istep += 1
+
+        u_tc1.append(u_eval(u, tc1, actx, discr, dim, tol))
+        u_tc2.append(u_eval(u, tc2, actx, discr, dim, tol))
+        u_tc3.append(u_eval(u, tc3, actx, discr, dim, tol))
 
 if __name__ == "__main__":
     main()
