@@ -147,7 +147,7 @@ def main():
         tol = 1e-5
         u_modal = np.array([])
         for point in q_arr:
-            u_point = u_eval(u, point, actx, discr, dim, tol)
+            u_point = u_eval(u, point, actx, discr, dim, tol) # <--- 1x1 PyOpenCL array
             u_modal = np.append(u_modal, u_point)
 
         diff = abs(u_modal - u_check)
@@ -155,7 +155,7 @@ def main():
         print(type(diff))
 
         err_inf = np.amax(diff)
-        err_2 = la.norm(diff, ord=2)
+        err_2 = la.norm(diff, ord=2) # <--- This doesn't work
         err = np.append(err, err_2)
 
     print(err)

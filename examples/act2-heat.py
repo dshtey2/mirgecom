@@ -25,6 +25,7 @@ import math
 import numpy as np
 import numpy.linalg as la  # noqa
 import pyopencl as cl
+import matplotlib.pyplot as plt
 
 from meshmode.array_context import PyOpenCLArrayContext
 from meshmode.dof_array import DOFArray, thaw
@@ -35,7 +36,7 @@ from grudge.eager import EagerDGDiscretization
 from grudge import sym as grudge_sym
 from grudge.shortcuts import make_visualizer
 from grudge.dof_desc import DISCR_TAG_BASE, DTAG_BOUNDARY
-from mirgecom.sampling import _find_src_unit_nodes
+from mirgecom.sampling import query_eval, u_eval
 from mirgecom.integrators import rk4_step
 from mirgecom.diffusion import (
     diffusion_operator,
@@ -118,7 +119,7 @@ def main():
         ramp_elems, = np.where((grp.regions & ramp_region_bit) != 0)
         samp_elems, = np.where((grp.regions & samp_region_bit) != 0)
         alpha_np[igrp][ramp_elems, :] = 4.2
-        alpha_np[igrp][samp_elems, :] = 0.5
+        alpha_np[igrp][samp_elems, :] = 0.684
 
     alpha = DOFArray(actx, tuple([
         actx.from_numpy(alpha_np_i) for alpha_np_i in alpha_np]))
@@ -246,15 +247,16 @@ def main():
     tc2 = np.array([17.5, 23.0, 16])
     tc3 = np.array([17.5, 26.0, 16])
 
-    u_tc1 = [u_eval(u, tc1, actx, discr, dim, tol)]
-    u_tc2 = [u_eval(u, tc2, actx, discr, dim, tol)]
-    u_tc3 = [u_eval(u, tc3, actx, discr, dim, tol)]
+    t_arr = [0]
+    u_1 = [actx.to_numpy(u_eval(u, tc1, actx, discr, dim, tol))]
+    u_2 = [actx.to_numpy(u_eval(u, tc2, actx, discr, dim, tol))]
+    u_3 = [actx.to_numpy(u_eval(u, tc3, actx, discr, dim, tol))]
 
     while True:
 
         if istep % 50 == 0:
             print(istep, t, discr.norm(u))
-            vis.write_vtk_file("29-fld-act2-bdy-%03d-%04d.vtu" % (rank, istep),
+            vis.write_vtk_file("fld-act2-interp_1-%03d-%04d.vtu" % (rank, istep),
                     [
                         ("u", u)
                         ])
@@ -266,9 +268,22 @@ def main():
         t += dt
         istep += 1
 
-        u_tc1.append(u_eval(u, tc1, actx, discr, dim, tol))
-        u_tc2.append(u_eval(u, tc2, actx, discr, dim, tol))
-        u_tc3.append(u_eval(u, tc3, actx, discr, dim, tol))
+        t_arr.append(t)
+        u_tc1 = u_eval(u, tc1, actx, discr, dim, tol)
+        u_tc2 = u_eval(u, tc2, actx, discr, dim, tol)
+        u_tc3 = u_eval(u, tc3, actx, discr, dim, tol)
+
+        u_1.append(actx.to_numpy(u_tc1))
+        u_2.append(actx.to_numpy(u_tc2))
+        u_3.append(actx.to_numpy(u_tc3))
+
+    plt.plot(t_arr, u_1, label = "10 mm")
+    plt.plot(t_arr, u_2, label = "13 mm")
+    plt.plot(t_arr, u_3, label = "16 mm")
+    plt.xlabel("t (s)")
+    plt.ylabel("T (K)")
+    plt.legend()
+    plt.show()
 
 if __name__ == "__main__":
     main()
